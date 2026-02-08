@@ -127,6 +127,8 @@ int main() {
 
 */
 
+//Q3
+
 
 #include <stdio.h>
 #include <stdlib.h>
