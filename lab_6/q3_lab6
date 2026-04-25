@@ -1,0 +1,68 @@
+%% matrix_addition_cu
+
+#include <stdio.h>
+#include <chrono>
+
+__global__ void addKernel(int *mat1, int *mat2, int *mat_out, int dim) {
+    int r_idx = blockIdx.y * blockDim.y + threadIdx.y;
+    int c_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (r_idx < dim && c_idx < dim) {
+        int pos = r_idx * dim + c_idx;
+        mat_out[pos] = mat1[pos] + mat2[pos];
+    }
+}
+
+int main() {
+    int dimension = 1024;
+    int total_elems = dimension * dimension;
+    int mem_size = total_elems * sizeof(int);
+
+    int *host_A = (int*)malloc(mem_size);
+    int *host_B = (int*)malloc(mem_size);
+    int *host_C = (int*)malloc(mem_size);
+
+    for (int idx = 0; idx < total_elems; idx++) {
+        host_A[idx] = 1;
+        host_B[idx] = 2;
+    }
+
+    int *gpu_A, *gpu_B, *gpu_C;
+    cudaMalloc(&gpu_A, mem_size);
+    cudaMalloc(&gpu_B, mem_size);
+    cudaMalloc(&gpu_C, mem_size);
+
+    cudaMemcpy(gpu_A, host_A, mem_size, cudaMemcpyHostToDevice);
+    cudaMemcpy(gpu_B, host_B, mem_size, cudaMemcpyHostToDevice);
+
+    dim3 threadsPerBlock(16, 16);
+    dim3 numBlocks((dimension + 15) / 16, (dimension + 15) / 16);
+
+    auto t_begin = std::chrono::high_resolution_clock::now();
+
+    addKernel<<<numBlocks, threadsPerBlock>>>(gpu_A, gpu_B, gpu_C, dimension);
+    cudaDeviceSynchronize();
+
+    auto t_finish = std::chrono::high_resolution_clock::now();
+
+    cudaMemcpy(host_C, gpu_C, mem_size, cudaMemcpyDeviceToHost);
+
+    std::chrono::duration<double> time_span = t_finish - t_begin;
+
+    printf("Matrix addition done\n");
+    printf("Time (GPU) = %f seconds\n", time_span.count());
+
+    cudaFree(gpu_A);
+    cudaFree(gpu_B);
+    cudaFree(gpu_C);
+
+    free(host_A); 
+    free(host_B); 
+    free(host_C);
+
+    return 0;
+}
+
+
+
+

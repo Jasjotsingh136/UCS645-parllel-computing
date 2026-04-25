@@ -1,0 +1,93 @@
+#include <stdio.h>
+#include <chrono>
+
+__global__ void reductionKernel(float *data_arr, float *final_out, int size_n) {
+    __shared__ float temp_buf[256];
+
+    int local_id = threadIdx.x;
+    int global_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+    temp_buf[local_id] = (global_id < size_n) ? data_arr[global_id] : 0;
+    __syncthreads();
+
+    for (int step = blockDim.x / 2; step > 0; step /= 2) {
+        if (local_id < step)
+            temp_buf[local_id] += temp_buf[local_id + step];
+        __syncthreads();
+    }
+
+    if (local_id == 0)
+        atomicAdd(final_out, temp_buf[0]);
+}
+
+int main() {
+    int total_elements = 1 << 20;
+    float *host_data = (float*)malloc(total_elements * sizeof(float));
+    float host_sum = 0;
+
+    for (int idx = 0; idx < total_elements; idx++)
+        host_data[idx] = 1.0f;
+
+    float *dev_data, *dev_sum;
+    cudaMalloc((void**)&dev_data, total_elements * sizeof(float));
+    cudaMalloc((void**)&dev_sum, sizeof(float));
+
+    cudaMemcpy(dev_data, host_data, total_elements * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_sum, &host_sum, sizeof(float), cudaMemcpyHostToDevice);
+
+    int threads = 256;
+    int blocks = (total_elements + threads - 1) / threads;
+
+    auto t_start = std::chrono::high_resolution_clock::now();
+
+    reductionKernel<<<blocks, threads>>>(dev_data, dev_sum, total_elements);
+    cudaDeviceSynchronize();
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+
+    cudaMemcpy(&host_sum, dev_sum, sizeof(float), cudaMemcpyDeviceToHost);
+
+    std::chrono::duration<double> elapsed = t_end - t_start;
+
+    printf("Sum = %f\n", host_sum);
+    printf("Time (GPU) = %f seconds\n", elapsed.count());
+
+    cudaFree(dev_data);
+    cudaFree(dev_sum);
+    free(host_data);
+
+    return 0;
+}
+
+
+
+
+%% array_sum_serial
+
+#include <iostream>
+#include <chrono>
+using namespace std;
+
+int main() {
+    int total_size = 1 << 20;
+    float *data_block = new float[total_size];
+
+    for (int index = 0; index < total_size; index++)
+        data_block[index] = 1.0;
+
+    auto t_start = chrono::high_resolution_clock::now();
+
+    float result_sum = 0;
+    for (int counter = 0; counter < total_size; counter++)
+        result_sum += data_block[counter];
+
+    auto t_end = chrono::high_resolution_clock::now();
+
+    chrono::duration<double> time_taken = t_end - t_start;
+
+    cout << "Sum = " << result_sum << endl;
+    cout << "Time = " << time_taken.count() << " sec\n";
+
+    delete[] data_block;
+    return 0;
+}

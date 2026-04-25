@@ -1,0 +1,35 @@
+#include <iostream>
+#include <chrono>
+using namespace std;
+
+int main() {
+    int dimension = 1024;
+    int total_count = dimension * dimension;
+
+    int *matrix_X = new int[total_count];
+    int *matrix_Y = new int[total_count];
+    int *matrix_result = new int[total_count];
+
+    for (int idx = 0; idx < total_count; idx++) {
+        matrix_X[idx] = 1;
+        matrix_Y[idx] = 2;
+    }
+
+    auto t_start = chrono::high_resolution_clock::now();
+
+    for (int pos = 0; pos < total_count; pos++) {
+        matrix_result[pos] = matrix_X[pos] + matrix_Y[pos];
+    }
+
+    auto t_end = chrono::high_resolution_clock::now();
+
+    chrono::duration<double> elapsed_time = t_end - t_start;
+
+    cout << "Time (CPU Serial) = " << elapsed_time.count() << " sec\n";
+
+    delete[] matrix_X;
+    delete[] matrix_Y;
+    delete[] matrix_result;
+
+    return 0;
+}
