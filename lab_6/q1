@@ -27,5 +27,4 @@ int main() {
                (gpu_info.major >= 1 && gpu_info.minor >= 3) ? "Yes" : "No");
     }
 
-    return 0;
-}
+    return 0;}
