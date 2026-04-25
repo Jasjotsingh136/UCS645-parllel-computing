@@ -1,0 +1,48 @@
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define DATA_SIZE 500000000LL
+
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+
+    int proc_id, total_procs;
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_id);
+    MPI_Comm_size(MPI_COMM_WORLD, &total_procs);
+
+    double factor = 2.0;
+    if (proc_id == 0 && argc >= 2) factor = atof(argv[1]);
+
+    MPI_Bcast(&factor, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    long long chunk = DATA_SIZE / total_procs;
+    long long leftover = DATA_SIZE % total_procs;
+    long long workload = chunk + (proc_id < leftover ? 1 : 0);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    double t_start = MPI_Wtime();
+
+    double partial_sum = 0.0;
+    double value = 2.0 * factor;
+    for (long long idx = 0; idx < workload; idx++) {
+        partial_sum += value;
+    }
+
+    double final_sum = 0.0;
+    MPI_Reduce(&partial_sum, &final_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    double t_end = MPI_Wtime();
+
+    double elapsed = t_end - t_start;
+    double longest_time = 0.0;
+    MPI_Reduce(&elapsed, &longest_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    if (proc_id == 0) {
+        printf("Q3 NP=%d TIME=%f DOT=%0.3f\n", total_procs, longest_time, final_sum);
+    }
+
+    MPI_Finalize();
+    return 0;
+}
