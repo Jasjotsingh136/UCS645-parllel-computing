@@ -1,0 +1,52 @@
+#include <stdio.h>
+#include <cuda.h>
+
+#define SIZE_VAL 1024
+
+__global__ void computeKernel(int *input_arr, int *output_res) {
+    int thread_id = threadIdx.x;
+
+    if (thread_id == 0) {
+        int total_sum = 0;
+        for (int idx = 0; idx < SIZE_VAL; idx++) {
+            total_sum += input_arr[idx];
+        }
+        output_res[0] = total_sum;
+    }
+
+    if (thread_id == 1) {
+        int formula_sum = (SIZE_VAL * (SIZE_VAL + 1)) / 2;
+        output_res[1] = formula_sum;
+    }
+}
+
+int main() {
+    int host_data[SIZE_VAL];
+    int host_output[2];
+
+    int *device_data, *device_output;
+
+    for (int i = 0; i < SIZE_VAL; i++) {
+        host_data[i] = i + 1;
+    }
+
+    cudaMalloc(&device_data, SIZE_VAL * sizeof(int));
+    cudaMalloc(&device_output, 2 * sizeof(int));
+
+    cudaMemcpy(device_data, host_data, SIZE_VAL * sizeof(int), cudaMemcpyHostToDevice);
+
+    dim3 threadsPerBlock(2);
+    dim3 numBlocks(1);
+
+    computeKernel<<<numBlocks, threadsPerBlock>>>(device_data, device_output);
+
+    cudaMemcpy(host_output, device_output, 2 * sizeof(int), cudaMemcpyDeviceToHost);
+
+    printf("Iterative Sum = %d\n", host_output[0]);
+    printf("Formula Sum = %d\n", host_output[1]);
+
+    cudaFree(device_data);
+    cudaFree(device_output);
+
+    return 0;
+}

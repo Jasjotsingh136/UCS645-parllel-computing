@@ -1,0 +1,84 @@
+// Vector Addition using CUDA
+#include <stdio.h>
+#include <cuda.h>
+
+#define DATA_SIZE (1<<20)
+
+__global__ void addKernel(float *in1, float *in2, float *out) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < DATA_SIZE)
+        out[idx] = in1[idx] + in2[idx];
+}
+
+int main() {
+
+    float *host_X, *host_Y, *host_Z;
+    host_X = (float*)malloc(DATA_SIZE * sizeof(float));
+    host_Y = (float*)malloc(DATA_SIZE * sizeof(float));
+    host_Z = (float*)malloc(DATA_SIZE * sizeof(float));
+
+    for (int i = 0; i < DATA_SIZE; i++) {
+        host_X[i] = 1.0f;
+        host_Y[i] = 2.0f;
+    }
+
+    float *dev_X, *dev_Y, *dev_Z;
+
+    cudaMalloc(&dev_X, DATA_SIZE * sizeof(float));
+    cudaMalloc(&dev_Y, DATA_SIZE * sizeof(float));
+    cudaMalloc(&dev_Z, DATA_SIZE * sizeof(float));
+
+    cudaMemcpy(dev_X, host_X, DATA_SIZE * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_Y, host_Y, DATA_SIZE * sizeof(float), cudaMemcpyHostToDevice);
+
+    cudaEvent_t evt_start, evt_stop;
+    cudaEventCreate(&evt_start);
+    cudaEventCreate(&evt_stop);
+
+    cudaEventRecord(evt_start);
+
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (DATA_SIZE + threadsPerBlock - 1) / threadsPerBlock;
+
+    addKernel<<<blocksPerGrid, threadsPerBlock>>>(dev_X, dev_Y, dev_Z);
+
+    cudaEventRecord(evt_stop);
+    cudaEventSynchronize(evt_stop);
+
+    float elapsed_ms;
+    cudaEventElapsedTime(&elapsed_ms, evt_start, evt_stop);
+
+    cudaMemcpy(host_Z, dev_Z, DATA_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+
+    printf("C[0] = %f\n", host_Z[0]);
+    printf("Kernel Time = %f ms\n", elapsed_ms);
+
+    cudaDeviceProp gpu_prop;
+    cudaGetDeviceProperties(&gpu_prop, 0);
+
+    float mem_clk = gpu_prop.memoryClockRate * 1000.0;
+    float bus_w = gpu_prop.memoryBusWidth;
+
+    float theo_bw = 2.0 * mem_clk * (bus_w / 8.0) / 1e9;
+
+    printf("Theoretical Bandwidth = %f GB/s\n", theo_bw);
+
+    float read_bytes = DATA_SIZE * sizeof(float) * 2;
+    float write_bytes = DATA_SIZE * sizeof(float);
+
+    float time_sec = elapsed_ms / 1000.0;
+
+    float meas_bw = (read_bytes + write_bytes) / (time_sec * 1e9);
+
+    printf("Measured Bandwidth = %f GB/s\n", meas_bw);
+
+    cudaFree(dev_X);
+    cudaFree(dev_Y);
+    cudaFree(dev_Z);
+
+    free(host_X);
+    free(host_Y);
+    free(host_Z);
+
+    return 0;
+}
